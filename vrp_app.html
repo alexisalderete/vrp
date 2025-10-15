@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Sistema de Ruteo VRP - Aplicación Real</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f8f9fa;
+    }
+    
+    #map { 
+      height: 100vh; 
+      width: 70%; 
+      float: left;
+    }
+    
+    #panelDetalles { 
+      width: 30%; 
+      height: 100vh; 
+      float: left; 
+      background: #fff; 
+      padding: 20px; 
+      box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+      overflow-y: auto;
+    }
+    
+    .control-panel {
+      position: absolute; 
+      top: 10px; 
+      left: 10px; 
+      background: white; 
+      padding: 20px; 
+      z-index: 1000;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+      min-width: 320px;
+      max-width: 400px;
+    }
+    
+    .control-group {
+      margin-bottom: 15px;
+    }
+    
+    .control-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #333;
+      font-size: 14px;
+    }
+    
+    .control-group input, .control-group select {
+      width: 100%;
+      padding: 10px;
+      border: 2px solid #e1e5e9;
+      border-radius: 6px;
+      box-sizing: border-box;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+    
+    .control-group input:focus, .control-group select:focus {
+      border-color: #007bff;
+      outline: none;
+    }
+    
+    .btn { 
+      background: #007bff; 
+      color: white;
+      padding: 12px 20px; 
+      cursor: pointer; 
+      border: none;
+      border-radius: 6px;
+      width: 100%;
+      margin-top: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      transition: background 0.3s;
+    }
+    
+    .btn:hover {
+      background: #0056b3;
+    }
+    
+    .btn-clear {
+      background: #dc3545;
+    }
+    
+    .btn-clear:hover {
+      background: #c82333;
+    }
+    
+    .btn-secondary {
+      background: #6c757d;
+    }
+    
+    .btn-secondary:hover {
+      background: #545b62;
+    }
+    
+    .detalles-ruta {
+      background: white;
+      padding: 20px;
+      margin: 15px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border-left: 4px solid #007bff;
+    }
+    
+    .punto-cliente {
+      display: flex;
+      align-items: center;
+      margin: 8px 0;
+      padding: 8px;
+      background: #f8f9fa;
+      border-radius: 4px;
+    }
+    
+    .color-ruta {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      margin-right: 12px;
+    }
+    
+    .depot-marker {
+      background-color: #000 !important;
+      border: 3px solid #fff !important;
+    }
+    
+    .client-marker {
+      background: #007bff;
+      border: 2px solid white;
+      border-radius: 50%;
+      color: white;
+      font-weight: bold;
+      text-align: center;
+      line-height: 25px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    
+    .order-form {
+      background: #fff;
+      padding: 20px;
+      margin: 15px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .form-row {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+    
+    .form-group {
+      flex: 1;
+    }
+    
+    .order-list {
+      max-height: 300px;
+      overflow-y: auto;
+      margin: 15px 0;
+    }
+    
+    .order-item {
+      padding: 12px;
+      border: 1px solid #e1e5e9;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      background: #f8f9fa;
+    }
+    
+    .order-header {
+      display: flex;
+      justify-content: between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .order-actions {
+      display: flex;
+      gap: 5px;
+    }
+    
+    .icon-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 3px;
+    }
+    
+    .icon-btn:hover {
+      background: #e9ecef;
+    }
+    
+    h2 {
+      color: #333;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #007bff;
+      padding-bottom: 10px;
+    }
+    
+    h3 {
+      color: #495057;
+      margin: 15px 0 10px 0;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 15px 0;
+    }
+    
+    .stat-item {
+      background: #e7f3ff;
+      padding: 10px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 18px;
+      font-weight: bold;
+      color: #007bff;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #6c757d;
+    }
+
+
+
+
+
+    .client-popup {
+      min-width: 200px;
+    }
+    
+    .client-info {
+      margin: 5px 0;
+    }
+    
+    .client-id-badge {
+      background: #007bff;
+      color: white;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      margin-right: 8px;
+    }
+    
+    .route-sequence {
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 10px 0;
+    }
+    
+    .sequence-item {
+      display: flex;
+      align-items: center;
+      margin: 5px 0;
+      padding: 5px;
+      border-left: 3px solid transparent;
+    }
+    
+    .sequence-item.current {
+      background: #e7f3ff;
+      border-left-color: #007bff;
+    }
+    
+    .sequence-number {
+      background: #6c757d;
+      color: white;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="panelDetalles">
+    <h2><i class="fas fa-route"></i> Sistema de Ruteo VRP</h2>
+    <div id="contenidoDetalles">
+      <div class="order-form">
+        <h3><i class="fas fa-plus-circle"></i> Agregar Pedido</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="orderWeight">Peso (kg):</label>
+            <input type="number" id="orderWeight" min="1" max="1000" value="10">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="timeWindowStart">Horario Inicio:</label>
+            <input type="time" id="timeWindowStart" value="08:00">
+          </div>
+          <div class="form-group">
+            <label for="timeWindowEnd">Horario Fin:</label>
+            <input type="time" id="timeWindowEnd" value="17:00">
+          </div>
+        </div>
+        <button class="btn btn-secondary" id="addOrderBtn">
+          <i class="fas fa-map-marker-alt"></i> Agregar Punto en Mapa
+        </button>
+        <p style="margin-top: 10px; font-size: 12px; color: #6c757d;">
+          <i class="fas fa-info-circle"></i> Haz clic en el mapa para agregar la ubicación del pedido
+        </p>
+      </div>
+      
+      <div id="ordersList">
+        <h3><i class="fas fa-list"></i> Pedidos Registrados</h3>
+        <div class="order-list" id="ordersContainer">
+          <p style="text-align: center; color: #6c757d; padding: 20px;">
+            No hay pedidos registrados. Agrega el primer pedido haciendo clic en el mapa.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Panel de control -->
+  <div class="control-panel">
+    <h3 style="margin-bottom: 20px; color: #333;">
+      <i class="fas fa-truck"></i> Configuración de Vehículos
+    </h3>
+    
+    <div class="control-group">
+      <label for="numVehicles"><i class="fas fa-truck-loading"></i> Cantidad de Vehículos:</label>
+      <input type="number" id="numVehicles" min="1" max="20" value="3">
+    </div>
+    
+    <div class="control-group">
+      <label for="vehicleCapacity"><i class="fas fa-weight-hanging"></i> Capacidad por Vehículo (kg):</label>
+      <input type="number" id="vehicleCapacity" min="100" max="5000" value="1000">
+    </div>
+    
+    <button class="btn" id="solveBtn">
+      <i class="fas fa-calculator"></i> Generar Rutas Óptimas
+    </button>
+    <button class="btn btn-clear" id="clearBtn">
+      <i class="fas fa-trash"></i> Limpiar Todo
+    </button>
+    
+    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
+      <p style="font-size: 12px; color: #6c757d;">
+        <i class="fas fa-lightbulb"></i> <strong>Instrucciones:</strong><br>
+        1. Configura los vehículos<br>
+        2. Agrega pedidos con ubicaciones<br>
+        3. Genera rutas optimizadas
+      </p>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+  <script>
+    // Inicializar mapa
+    var map = L.map('map').setView([-25.53131578139632, -56.730936707814976], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    let orders = [];
+    let markers = [];
+    let polylines = [];
+    let depotMarker = null;
+    let isAddingOrder = false;
+    let orderCounter = 1;
+
+    // Función para crear icono de cliente con número
+    function createClientIcon(number) {
+      return L.divIcon({
+        className: 'client-marker',
+        html: number.toString(),
+        iconSize: [25, 25],
+        iconAnchor: [12, 12]
+      });
+    }
+
+    // Configurar evento para agregar pedidos
+    document.getElementById('addOrderBtn').addEventListener('click', function() {
+      isAddingOrder = true;
+      // alert('Modo agregar pedido activado. Haz clic en el mapa para agregar la ubicación del pedido.');
+    });
+
+    // Agregar puntos al hacer clic en el mapa
+    map.on("click", function(e) {
+      if (!isAddingOrder && orders.length === 0) {
+        // Si no estamos agregando pedidos y no hay depósito, preguntar si es depósito
+        if (confirm('¿Deseas establecer este punto como DEPÓSITO principal?')) {
+          addDepot(e.latlng.lat, e.latlng.lng);
+        }
+        return;
+      }
+      
+      if (isAddingOrder) {
+        addOrder(e.latlng.lat, e.latlng.lng);
+        isAddingOrder = false;
+      }
+    });
+
+    function addDepot(lat, lon) {
+      // Limpiar marcador anterior del depósito si existe
+      if (depotMarker) {
+        map.removeLayer(depotMarker);
+      }
+      
+      // Crear marcador especial para el depósito
+      depotMarker = L.marker([lat, lon], {
+        icon: L.divIcon({
+          className: 'depot-marker',
+          html: '🏠',
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
+        })
+      }).addTo(map)
+      .bindPopup(`<strong>DEPÓSITO PRINCIPAL</strong><br>Lat: ${lat.toFixed(6)}<br>Lon: ${lon.toFixed(6)}`);
+      
+      // Agregar como primer pedido (depósito)
+      orders = [{
+        id: 0,
+        type: 'depot',
+        coordinates: [lon, lat],
+        weight: 0,
+        time_window: [0, 1440], // 24 horas
+        address: 'Depósito Principal'
+      }];
+      
+      updateOrdersList();
+      updateMapView();
+    }
+
+    function addOrder(lat, lon) {
+      if (orders.length === 0) {
+        alert('Primero debes establecer el depósito principal.');
+        return;
+      }
+
+      const weight = parseInt(document.getElementById('orderWeight').value);
+      const timeStart = document.getElementById('timeWindowStart').value;
+      const timeEnd = document.getElementById('timeWindowEnd').value;
+      
+      // Convertir tiempo a minutos desde medianoche
+      const [startHours, startMinutes] = timeStart.split(':').map(Number);
+      const [endHours, endMinutes] = timeEnd.split(':').map(Number);
+      const twStart = startHours * 60 + startMinutes;
+      const twEnd = endHours * 60 + endMinutes;
+
+      const order = {
+        id: orderCounter,
+        type: 'client',
+        coordinates: [lon, lat],
+        weight: weight,
+        time_window: [twStart, twEnd],
+        address: `Cliente ${orderCounter}`
+      };
+
+      orders.push(order);
+      
+      // Agregar marcador al mapa
+      let marker = L.marker([lat, lon], {
+        icon: createClientIcon(orderCounter)
+      })
+        .addTo(map)
+        .bindPopup(`
+          <strong>Cliente ${orderCounter}</strong><br>
+          Peso: ${weight} kg<br>
+          Horario: ${timeStart} - ${timeEnd}<br>
+          Lat: ${lat.toFixed(6)}<br>Lon: ${lon.toFixed(6)}
+        `);
+      
+      markers.push(marker);
+      orderCounter++;
+      
+      updateOrdersList();
+      updateMapView();
+    }
+
+    function updateOrdersList() {
+      const container = document.getElementById('ordersContainer');
+      
+      if (orders.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #6c757d; padding: 20px;">No hay pedidos registrados.</p>';
+        return;
+      }
+      
+      let html = '';
+      
+      orders.forEach(order => {
+        if (order.type === 'depot') {
+          html += `
+            <div class="order-item" style="border-left: 4px solid #000;">
+              <div class="order-header">
+                <strong>🏠 DEPÓSITO PRINCIPAL</strong>
+              </div>
+              <div>Ubicación: ${order.coordinates[1].toFixed(6)}, ${order.coordinates[0].toFixed(6)}</div>
+            </div>
+          `;
+        } else {
+          const timeStart = formatTimeFromMinutes(order.time_window[0]);
+          const timeEnd = formatTimeFromMinutes(order.time_window[1]);
+          
+          html += `
+            <div class="order-item">
+              <div class="order-header">
+                <strong>👤 Cliente ${order.id}</strong>
+                <div class="order-actions">
+                  <button class="icon-btn" onclick="removeOrder(${order.id})" title="Eliminar">
+                    <i class="fas fa-trash" style="color: #dc3545;"></i>
+                  </button>
+                </div>
+              </div>
+              <div>Peso: ${order.weight} kg</div>
+              <div>Horario: ${timeStart} - ${timeEnd}</div>
+              <div>Ubicación: ${order.coordinates[1].toFixed(6)}, ${order.coordinates[0].toFixed(6)}</div>
+            </div>
+          `;
+        }
+      });
+      
+      container.innerHTML = html;
+    }
+
+    function formatTimeFromMinutes(minutes) {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    }
+
+    function removeOrder(orderId) {
+      if (confirm('¿Estás seguro de eliminar este pedido?')) {
+        // Encontrar y eliminar el pedido
+        const index = orders.findIndex(order => order.id === orderId);
+        if (index !== -1) {
+          orders.splice(index, 1);
+        }
+        
+        // Encontrar y eliminar el marcador
+        const markerIndex = markers.findIndex(marker => {
+          const popupContent = marker.getPopup().getContent();
+          return popupContent.includes(`Cliente ${orderId}`);
+        });
+        
+        if (markerIndex !== -1) {
+          map.removeLayer(markers[markerIndex]);
+          markers.splice(markerIndex, 1);
+        }
+        
+        updateOrdersList();
+      }
+    }
+
+    function updateMapView() {
+      if (markers.length > 0 || depotMarker) {
+        const featureGroup = L.featureGroup(
+          depotMarker ? [depotMarker, ...markers] : markers
+        );
+        map.fitBounds(featureGroup.getBounds().pad(0.1));
+      }
+    }
+
+    // FUNCIÓN PARA GENERAR RUTAS
+    // FUNCIÓN MEJORADA PARA GENERAR RUTAS
+    document.getElementById("solveBtn").onclick = function() {
+        if (orders.length < 2) {
+            alert("Agrega al menos 1 cliente además del depósito");
+            return;
+        }
+
+        const numVehicles = parseInt(document.getElementById("numVehicles").value);
+        const vehicleCapacity = parseInt(document.getElementById("vehicleCapacity").value);
+
+        // Validaciones
+        if (numVehicles < 1) {
+            alert("La cantidad de vehículos debe ser al menos 1");
+            return;
+        }
+
+        const totalWeight = orders.slice(1).reduce((sum, order) => sum + order.weight, 0);
+        if (totalWeight > numVehicles * vehicleCapacity) {
+            alert(`La capacidad total requerida (${totalWeight} kg) excede la capacidad disponible (${numVehicles * vehicleCapacity} kg)`);
+            return;
+        }
+
+        // Mostrar carga con detalles
+        document.getElementById("contenidoDetalles").innerHTML = `
+            <div class="detalles-ruta">
+                <h3><i class="fas fa-cog fa-spin"></i> Calculando rutas óptimas...</h3>
+                <p><strong>Parámetros usados:</strong></p>
+                <ul>
+                    <li>Vehículos: ${numVehicles}</li>
+                    <li>Capacidad: ${vehicleCapacity} kg</li>
+                    <li>Clientes: ${orders.length - 1}</li>
+                    <li>Peso total: ${totalWeight} kg</li>
+                </ul>
+                <p><small>Este proceso puede tomar hasta 10 segundos...</small></p>
+            </div>
+        `;
+
+        fetch("http://127.0.0.1:5000/solve", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                orders: orders,
+                num_vehicles: numVehicles,
+                vehicle_capacity: vehicleCapacity
+            })
+        })
+        .then(async res => {
+            const text = await res.text();
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                throw new Error(`Respuesta inválida del servidor: ${text.substring(0, 100)}...`);
+            }
+            
+            if (!res.ok) {
+                throw new Error(data.details || data.error || 'Error del servidor');
+            }
+            return data;
+        })
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            console.log("Datos recibidos:", data);
+            
+            // Limpiar rutas anteriores
+            limpiarPolylines();
+            
+            // Dibujar nuevas rutas
+            dibujarRutas(data);
+            
+            // Mostrar detalles
+            mostrarDetallesRutas(data);
+        })
+        .catch(error => {
+            console.error("Error:", error);
+            let errorMessage = error.message;
+            
+            // Mensajes más amigables para errores comunes
+            if (errorMessage.includes("factible")) {
+                errorMessage += "\n\nSugerencias:\n• Aumenta la capacidad de los vehículos\n• Amplía las ventanas horarias de entrega\n• Reduce el número de pedidos\n• Agrega más vehículos";
+            }
+            
+            document.getElementById("contenidoDetalles").innerHTML = 
+                `<div style="color: red; padding: 15px; background: #ffe6e6; border-radius: 5px; white-space: pre-line;">
+                    <strong><i class="fas fa-exclamation-triangle"></i> Error al calcular rutas:</strong><br>${errorMessage}
+                </div>`;
+        });
+    };
+
+
+    // Función para limpiar el mapa
+    document.getElementById("clearBtn").onclick = function() {
+      if (confirm('¿Estás seguro de limpiar todos los pedidos y rutas?')) {
+        orders = [];
+        markers.forEach(marker => map.removeLayer(marker));
+        markers = [];
+        if (depotMarker) {
+          map.removeLayer(depotMarker);
+          depotMarker = null;
+        }
+        limpiarPolylines();
+        orderCounter = 1;
+        isAddingOrder = false;
+        updateOrdersList();
+        
+        document.getElementById("contenidoDetalles").innerHTML = `
+          <div class="order-form">
+            <h3><i class="fas fa-plus-circle"></i> Agregar Pedido</h3>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="orderWeight">Peso (kg):</label>
+                <input type="number" id="orderWeight" min="1" max="1000" value="10">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="timeWindowStart">Horario Inicio:</label>
+                <input type="time" id="timeWindowStart" value="08:00">
+              </div>
+              <div class="form-group">
+                <label for="timeWindowEnd">Horario Fin:</label>
+                <input type="time" id="timeWindowEnd" value="17:00">
+              </div>
+            </div>
+            <button class="btn btn-secondary" id="addOrderBtn">
+              <i class="fas fa-map-marker-alt"></i> Agregar Punto en Mapa
+            </button>
+          </div>
+          <div id="ordersList">
+            <h3><i class="fas fa-list"></i> Pedidos Registrados</h3>
+            <div class="order-list" id="ordersContainer">
+              <p style="text-align: center; color: #6c757d; padding: 20px;">
+                No hay pedidos registrados. Agrega el primer pedido haciendo clic en el mapa.
+              </p>
+            </div>
+          </div>
+        `;
+        
+        // Re-asignar el evento después de limpiar
+        document.getElementById('addOrderBtn').addEventListener('click', function() {
+          isAddingOrder = true;
+          alert('Modo agregar pedido activado. Haz clic en el mapa para agregar la ubicación del pedido.');
+        });
+      }
+    };
+
+    // Función para limpiar polylines
+    function limpiarPolylines() {
+      polylines.forEach(polyline => map.removeLayer(polyline));
+      polylines = [];
+    }
+
+    // Función para dibujar rutas en el mapa - CORREGIDA
+    function dibujarRutas(data) {
+      const colores = ['#FF0000', '#0000FF', '#00FF00', '#FFA500', '#800080', 
+                      '#FF69B4', '#FFD700', '#00FFFF', '#FF00FF', '#32CD32'];
+
+      console.log(`Dibujando ${data.routes.length} rutas`);
+
+      data.routes.forEach((ruta, indexRuta) => {
+          console.log(`Procesando ruta ${ruta.vehicle_id}:`, {
+              geometry: ruta.geometry ? ruta.geometry.length : 0,
+              clients: ruta.nodes.length,
+              distance: ruta.distance
+          });
+
+          // Dibujar ruta SI tiene geometría Y tiene al menos 1 cliente
+          if (ruta.geometry && ruta.geometry.length > 0 && ruta.nodes.length > 0) {
+              let coordsLeaflet = ruta.geometry.map(coord => [coord[1], coord[0]]);
+              
+
+
+
+              // Crear gradiente de color según el progreso del recorrido
+              let totalPoints = coordsLeaflet.length;
+
+              coordsLeaflet.forEach((coord, i) => {
+                if (i < totalPoints - 1) {
+                  let startColor = `hsl(${120 - (i / totalPoints) * 120}, 100%, 50%)`; // verde a rojo
+                  L.polyline([coord, coordsLeaflet[i + 1]], {
+                    color: startColor,
+                    weight: 6,
+                    opacity: 0.9,
+                  }).addTo(map);
+                }
+              });
+
+
+
+
+              let polyline = L.polyline(coordsLeaflet, {
+                  color: colores[indexRuta % colores.length],
+                  weight: 6,
+                  opacity: 0.8,
+                  lineCap: 'round'
+              }).addTo(map)
+              .bindPopup(`
+                  <strong>Vehículo ${ruta.vehicle_id}</strong><br>
+                  Distancia: ${(ruta.distance / 1000).toFixed(2)} km<br>
+                  Duración: ${(ruta.duration / 60).toFixed(2)} min<br>
+                  Peso total: ${ruta.total_weight} kg<br>
+                  Clientes: ${ruta.nodes.length}
+              `);
+
+              polylines.push(polyline);
+              console.log(`✓ Ruta ${ruta.vehicle_id} dibujada con ${coordsLeaflet.length} puntos`);
+          } else {
+              console.log(`✗ Ruta ${ruta.vehicle_id} no tiene geometría o está vacía`);
+          }
+      });
+
+      // Ajustar vista del mapa para mostrar todas las rutas
+      if (polylines.length > 0) {
+          let grupo = L.featureGroup(polylines);
+          map.fitBounds(grupo.getBounds().pad(0.1));
+          console.log(`Vista ajustada para ${polylines.length} rutas`);
+      } else {
+          console.log("No hay rutas para mostrar en el mapa");
+      }
+      
+    }
+
+    // Función para mostrar detalles de las rutas
+    function mostrarDetallesRutas(data) {
+      let html = `
+        <div class="detalles-ruta">
+          <h3><i class="fas fa-chart-bar"></i> Resumen de la Solución</h3>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-value">${data.vehicle_info.used}/${data.vehicle_info.available}</div>
+              <div class="stat-label">Vehículos Usados</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">${(data.statistics.total_distance / 1000).toFixed(1)} km</div>
+              <div class="stat-label">Distancia Total</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">${(data.statistics.total_duration / 60).toFixed(0)} min</div>
+              <div class="stat-label">Duración Total</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">${data.statistics.total_weight} kg</div>
+              <div class="stat-label">Peso Total</div>
+            </div>
+          </div>
+          <p><strong>Depósito:</strong> ${data.depot[1].toFixed(6)}, ${data.depot[0].toFixed(6)}</p>
+          <p><strong>Clientes Atendidos:</strong> ${data.statistics.num_clients}</p>
+          <p><strong>Factibilidad:</strong> ${data.solution_quality.is_feasible ? '✅ Factible' : '❌ No factible'}</p>
+        </div>
+      `;
+      
+      // Detalles de cada ruta individual
+      data.routes.forEach((ruta, index) => {
+        const color = ['#FF0000', '#0000FF', '#00FF00', '#FFA500', '#800080', '#FF69B4', '#FFD700', '#00FFFF', '#FF00FF', '#32CD32'][index % 10];
+        
+        html += `
+          <div class="detalles-ruta">
+            <h4>
+              <div class="color-ruta" style="background-color: ${color}; display: inline-block;"></div>
+              Vehículo ${ruta.vehicle_id}
+            </h4>
+            <p><strong>Distancia:</strong> ${(ruta.distance / 1000).toFixed(2)} km</p>
+            <p><strong>Duración:</strong> ${(ruta.duration / 60).toFixed(2)} min</p>
+            <p><strong>Peso transportado:</strong> ${ruta.total_weight} kg / ${data.vehicle_info.capacity} kg</p>
+            <p><strong>Clientes en ruta:</strong> ${ruta.nodes.length}</p>
+            <div><strong>Secuencia de entrega:</strong></div>
+            <ol>
+        `;
+        
+        ruta.nodes.forEach((punto, idxPunto) => {
+            const lat = punto[1];
+            const lon = punto[0];
+            const arrivalTime = formatTimeFromMinutes(Math.round(ruta.arrival_times[idxPunto]));
+            html += `
+              <li style="margin: 8px 0;">
+                <strong>Cliente</strong><br>
+                Ubicación: ${lat.toFixed(6)}, ${lon.toFixed(6)}<br>
+                Peso: ${ruta.weights[idxPunto]} kg<br>
+                Llegada estimada: ${arrivalTime}
+              </li>
+            `;
+        });
+
+        html += `
+            </ol>
+          </div>
+        `;
+      });
+      
+      document.getElementById("contenidoDetalles").innerHTML = html;
+    }
+
+    // Inicializar la interfaz
+    updateOrdersList();
+  </script>
+</body>
+</html>

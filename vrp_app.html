@@ -742,72 +742,51 @@
 
     // Función para dibujar rutas en el mapa - CORREGIDA
     function dibujarRutas(data) {
-      const colores = ['#FF0000', '#0000FF', '#00FF00', '#FFA500', '#800080', 
-                      '#FF69B4', '#FFD700', '#00FFFF', '#FF00FF', '#32CD32'];
+        const colores = ['#FF0000', '#0000FF', '#00FF00', '#FFA500', '#800080', 
+                        '#FF69B4', '#FFD700', '#00FFFF', '#FF00FF', '#32CD32'];
 
-      console.log(`Dibujando ${data.routes.length} rutas`);
+        console.log(`Dibujando ${data.routes.length} rutas`);
 
-      data.routes.forEach((ruta, indexRuta) => {
-          console.log(`Procesando ruta ${ruta.vehicle_id}:`, {
-              geometry: ruta.geometry ? ruta.geometry.length : 0,
-              clients: ruta.nodes.length,
-              distance: ruta.distance
-          });
+        data.routes.forEach((ruta, indexRuta) => {
+            console.log(`Procesando ruta ${ruta.vehicle_id}:`, {
+                geometry: ruta.geometry ? ruta.geometry.length : 0,
+                clients: ruta.nodes.length,
+                distance: ruta.distance
+            });
 
-          // Dibujar ruta SI tiene geometría Y tiene al menos 1 cliente
-          if (ruta.geometry && ruta.geometry.length > 0 && ruta.nodes.length > 0) {
-              let coordsLeaflet = ruta.geometry.map(coord => [coord[1], coord[0]]);
-              
-
-
-
-              // Crear gradiente de color según el progreso del recorrido
-              let totalPoints = coordsLeaflet.length;
-
-              coordsLeaflet.forEach((coord, i) => {
-                if (i < totalPoints - 1) {
-                  let startColor = `hsl(${120 - (i / totalPoints) * 120}, 100%, 50%)`; // verde a rojo
-                  L.polyline([coord, coordsLeaflet[i + 1]], {
-                    color: startColor,
+            // Dibujar ruta SI tiene geometría Y tiene al menos 1 cliente
+            if (ruta.geometry && ruta.geometry.length > 0 && ruta.nodes.length > 0) {
+                let coordsLeaflet = ruta.geometry.map(coord => [coord[1], coord[0]]);
+                
+                let polyline = L.polyline(coordsLeaflet, {
+                    color: colores[indexRuta % colores.length],
                     weight: 6,
-                    opacity: 0.9,
-                  }).addTo(map);
-                }
-              });
+                    opacity: 0.8,
+                    lineCap: 'round'
+                }).addTo(map)
+                .bindPopup(`
+                    <strong>Vehículo ${ruta.vehicle_id}</strong><br>
+                    Distancia: ${(ruta.distance / 1000).toFixed(2)} km<br>
+                    Duración: ${(ruta.duration / 60).toFixed(2)} min<br>
+                    Peso total: ${ruta.total_weight} kg<br>
+                    Clientes: ${ruta.nodes.length}
+                `);
 
+                polylines.push(polyline);
+                console.log(`✓ Ruta ${ruta.vehicle_id} dibujada con ${coordsLeaflet.length} puntos`);
+            } else {
+                console.log(`✗ Ruta ${ruta.vehicle_id} no tiene geometría o está vacía`);
+            }
+        });
 
-
-
-              let polyline = L.polyline(coordsLeaflet, {
-                  color: colores[indexRuta % colores.length],
-                  weight: 6,
-                  opacity: 0.8,
-                  lineCap: 'round'
-              }).addTo(map)
-              .bindPopup(`
-                  <strong>Vehículo ${ruta.vehicle_id}</strong><br>
-                  Distancia: ${(ruta.distance / 1000).toFixed(2)} km<br>
-                  Duración: ${(ruta.duration / 60).toFixed(2)} min<br>
-                  Peso total: ${ruta.total_weight} kg<br>
-                  Clientes: ${ruta.nodes.length}
-              `);
-
-              polylines.push(polyline);
-              console.log(`✓ Ruta ${ruta.vehicle_id} dibujada con ${coordsLeaflet.length} puntos`);
-          } else {
-              console.log(`✗ Ruta ${ruta.vehicle_id} no tiene geometría o está vacía`);
-          }
-      });
-
-      // Ajustar vista del mapa para mostrar todas las rutas
-      if (polylines.length > 0) {
-          let grupo = L.featureGroup(polylines);
-          map.fitBounds(grupo.getBounds().pad(0.1));
-          console.log(`Vista ajustada para ${polylines.length} rutas`);
-      } else {
-          console.log("No hay rutas para mostrar en el mapa");
-      }
-      
+        // Ajustar vista del mapa para mostrar todas las rutas
+        if (polylines.length > 0) {
+            let grupo = L.featureGroup(polylines);
+            map.fitBounds(grupo.getBounds().pad(0.1));
+            console.log(`Vista ajustada para ${polylines.length} rutas`);
+        } else {
+            console.log("No hay rutas para mostrar en el mapa");
+        }
     }
 
     // Función para mostrar detalles de las rutas

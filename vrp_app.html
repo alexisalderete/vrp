@@ -377,6 +377,9 @@
   </div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-polylinedecorator/1.1.0/leaflet.polylineDecorator.min.js"></script>
+
+  
   <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
   <script>
     // Inicializar mapa
@@ -742,51 +745,112 @@
 
     // Función para dibujar rutas en el mapa - CORREGIDA
     function dibujarRutas(data) {
-        const colores = ['#FF0000', '#0000FF', '#00FF00', '#FFA500', '#800080', 
-                        '#FF69B4', '#FFD700', '#00FFFF', '#FF00FF', '#32CD32'];
+      const colores = ['#B84949', '#6161BA', '#8DCC8D', '#D9BA4E', '#B061B0',
+                      '#FF69B4', '#FFD700', '#00FFFF', '#FF00FF', '#32CD32'];
 
-        console.log(`Dibujando ${data.routes.length} rutas`);
+      limpiarPolylines();
+      polylines = [];
 
-        data.routes.forEach((ruta, indexRuta) => {
-            console.log(`Procesando ruta ${ruta.vehicle_id}:`, {
-                geometry: ruta.geometry ? ruta.geometry.length : 0,
-                clients: ruta.nodes.length,
-                distance: ruta.distance
-            });
+      data.routes.forEach((ruta, indexRuta) => {
+        if (!ruta.geometry || ruta.geometry.length === 0) return;
 
-            // Dibujar ruta SI tiene geometría Y tiene al menos 1 cliente
-            if (ruta.geometry && ruta.geometry.length > 0 && ruta.nodes.length > 0) {
-                let coordsLeaflet = ruta.geometry.map(coord => [coord[1], coord[0]]);
-                
-                let polyline = L.polyline(coordsLeaflet, {
-                    color: colores[indexRuta % colores.length],
-                    weight: 6,
-                    opacity: 0.8,
-                    lineCap: 'round'
-                }).addTo(map)
-                .bindPopup(`
-                    <strong>Vehículo ${ruta.vehicle_id}</strong><br>
-                    Distancia: ${(ruta.distance / 1000).toFixed(2)} km<br>
-                    Duración: ${(ruta.duration / 60).toFixed(2)} min<br>
-                    Peso total: ${ruta.total_weight} kg<br>
-                    Clientes: ${ruta.nodes.length}
-                `);
+        const coordsLeaflet = ruta.geometry.map(coord => [coord[1], coord[0]]);
+        const color = colores[indexRuta % colores.length];
 
-                polylines.push(polyline);
-                console.log(`✓ Ruta ${ruta.vehicle_id} dibujada con ${coordsLeaflet.length} puntos`);
-            } else {
-                console.log(`✗ Ruta ${ruta.vehicle_id} no tiene geometría o está vacía`);
+        const polyline = L.polyline(coordsLeaflet, {
+          color: color,
+          weight: 6,
+          opacity: 0.9,
+          lineCap: 'round'
+        })
+        .addTo(map)
+        .bindPopup(`
+          <strong>Vehículo ${ruta.vehicle_id}</strong><br>
+          Distancia: ${(ruta.distance / 1000).toFixed(2)} km<br>
+          Duración: ${(ruta.duration / 60).toFixed(2)} min<br>
+          Peso total: ${ruta.total_weight} kg<br>
+          Clientes: ${ruta.nodes.length}
+        `);
+
+        const decorator = L.polylineDecorator(polyline, {
+          patterns: [
+            {
+              offset: '5%',
+              repeat: 80,
+              symbol: L.Symbol.arrowHead({
+                pixelSize: 10,
+                polygon: true,
+                pathOptions: { color: color, weight: 5, opacity: 1.0 }
+              })
             }
-        });
+          ]
+        }).addTo(map);
 
-        // Ajustar vista del mapa para mostrar todas las rutas
-        if (polylines.length > 0) {
-            let grupo = L.featureGroup(polylines);
-            map.fitBounds(grupo.getBounds().pad(0.1));
-            console.log(`Vista ajustada para ${polylines.length} rutas`);
-        } else {
-            console.log("No hay rutas para mostrar en el mapa");
+        polylines.push({ polyline, decorator, color });
+      });
+
+      let rutaSeleccionada = null;
+
+      function actualizarEstilos() {
+        polylines.forEach(obj => {
+          const esSeleccionada = (obj === rutaSeleccionada);
+
+          obj.polyline.setStyle({
+            weight: esSeleccionada ? 6 : 4,
+            opacity: esSeleccionada ? 1.0 : 0.5
+          });
+
+          // Traer la ruta seleccionada al frente
+          if (esSeleccionada) {
+            obj.polyline.bringToFront();
+          }
+
+          map.removeLayer(obj.decorator);
+
+          obj.decorator = L.polylineDecorator(obj.polyline, {
+            patterns: [
+              {
+                offset: '5%',
+                repeat: 80,
+                symbol: L.Symbol.arrowHead({
+                  pixelSize: 10,
+                  polygon: true,
+                  pathOptions: {
+                    color: obj.color,
+                    weight: 5,
+                    opacity: esSeleccionada ? 1.0 : 0.5
+                  }
+                })
+              }
+            ]
+          }).addTo(map);
+
+          // Traer también las flechas de la ruta seleccionada al frente
+          if (esSeleccionada) {
+            obj.decorator.bringToFront();
+          }
+        });
+      }
+
+      polylines.forEach(obj => {
+        obj.polyline.on('click', (e) => {
+          e.originalEvent.stopPropagation();
+          rutaSeleccionada = obj;
+          actualizarEstilos();
+        });
+      });
+
+      map.on('click', () => {
+        if (rutaSeleccionada) {
+          rutaSeleccionada = null;
+          actualizarEstilos();
         }
+      });
+
+      if (polylines.length > 0) {
+        const grupo = L.featureGroup(polylines.map(p => p.polyline));
+        map.fitBounds(grupo.getBounds().pad(0.1));
+      }
     }
 
     // Función para mostrar detalles de las rutas

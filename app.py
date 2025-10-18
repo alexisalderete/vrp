@@ -33,7 +33,7 @@ def get_matrices(coords):
         return data["distances"], data["durations"]
     except Exception as e:
         print(f"Error en OSRM: {e}")
-        # Crear matriz de distancia euclidiana como fallback
+        # Crear matriz de distancia euclidiana como fallback.
         size = len(coords)
         distances = [[0] * size for _ in range(size)]
         durations = [[0] * size for _ in range(size)]

@@ -115,6 +115,18 @@
       border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       border-left: 4px solid #007bff;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .detalles-ruta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .detalles-ruta.seleccionada {
+      border-left: 4px solid #28a745;
+      background-color: #f8fff9;
     }
     
     .punto-cliente {
@@ -242,10 +254,6 @@
       color: #6c757d;
     }
 
-
-
-
-
     .client-popup {
       min-width: 200px;
     }
@@ -298,6 +306,17 @@
       justify-content: center;
       font-size: 12px;
       margin-right: 8px;
+    }
+    
+    .route-controls {
+      display: flex;
+      gap: 10px;
+      margin: 15px 0;
+    }
+    
+    .route-controls .btn {
+      flex: 1;
+      margin-top: 0;
     }
   </style>
 </head>
@@ -396,6 +415,8 @@
     let depotMarker = null; // Marcador del depósito
     let isAddingOrder = false; // Variable para controlar el modo de agregar pedido
     let orderCounter = 1; // Contador para los números de los pedidos
+    let rutaSeleccionada = null; // Variable global para la ruta seleccionada
+    let todasLasRutasSeleccionadas = false; // Estado para controlar selección múltiple
 
     // Función para crear icono de cliente con número
     function createClientIcon(number) {
@@ -590,7 +611,6 @@
     }
 
     // FUNCIÓN PARA GENERAR RUTAS
-    // FUNCIÓN MEJORADA PARA GENERAR RUTAS
     document.getElementById("solveBtn").onclick = function() {
         if (orders.length < 2) {
             alert("Agrega al menos 1 cliente además del depósito");
@@ -682,7 +702,6 @@
         });
     };
 
-
     // Función para limpiar el mapa
     document.getElementById("clearBtn").onclick = function() {
       if (confirm('¿Estás seguro de limpiar todos los pedidos y rutas?')) {
@@ -741,11 +760,13 @@
 
     // Función para limpiar polylines
     function limpiarPolylines() {
-      polylines.forEach(polyline => map.removeLayer(polyline));
+      polylines.forEach(polyline => map.removeLayer(polyline.polyline));
       polylines = [];
+      rutaSeleccionada = null;
+      todasLasRutasSeleccionadas = false;
     }
 
-    // Función para dibujar rutas en el mapa - CORREGIDA
+    // Función para dibujar rutas en el mapa
     function dibujarRutas(data) {
       const colores = ['#B84949', '#6161BA', '#8DCC8D', '#D9BA4E', '#B061B0',
                       '#FF69B4', '#FFD700', '#00FFFF', '#FF00FF', '#32CD32'];
@@ -761,8 +782,8 @@
 
         const polyline = L.polyline(coordsLeaflet, {
           color: color,
-          weight: 6,
-          opacity: 0.9,
+          weight: 4,
+          opacity: 0.7,
           lineCap: 'round'
         })
         .addTo(map)
@@ -782,70 +803,32 @@
               symbol: L.Symbol.arrowHead({
                 pixelSize: 10,
                 polygon: true,
-                pathOptions: { color: color, weight: 5, opacity: 1.0 }
+                pathOptions: { color: color, weight: 5, opacity: 0.7 }
               })
             }
           ]
         }).addTo(map);
 
-        polylines.push({ polyline, decorator, color });
+        polylines.push({ 
+          polyline, 
+          decorator, 
+          color,
+          vehicleId: ruta.vehicle_id,
+          index: indexRuta
+        });
       });
 
-      let rutaSeleccionada = null;
-
-      function actualizarEstilos() {
-        polylines.forEach(obj => {
-          const esSeleccionada = (obj === rutaSeleccionada);
-
-          obj.polyline.setStyle({
-            weight: esSeleccionada ? 6 : 4,
-            opacity: esSeleccionada ? 1.0 : 0.5
-          });
-
-          // Traer la ruta seleccionada al frente
-          if (esSeleccionada) {
-            obj.polyline.bringToFront();
-          }
-
-          map.removeLayer(obj.decorator);
-
-          obj.decorator = L.polylineDecorator(obj.polyline, {
-            patterns: [
-              {
-                offset: '5%',
-                repeat: 80,
-                symbol: L.Symbol.arrowHead({
-                  pixelSize: 10,
-                  polygon: true,
-                  pathOptions: {
-                    color: obj.color,
-                    weight: 5,
-                    opacity: esSeleccionada ? 1.0 : 0.5
-                  }
-                })
-              }
-            ]
-          }).addTo(map);
-
-          // Traer también las flechas de la ruta seleccionada al frente
-          if (esSeleccionada) {
-            obj.decorator.bringToFront();
-          }
-        });
-      }
-
+      // Configurar eventos de clic en las rutas del mapa
       polylines.forEach(obj => {
         obj.polyline.on('click', (e) => {
           e.originalEvent.stopPropagation();
-          rutaSeleccionada = obj;
-          actualizarEstilos();
+          seleccionarRuta(obj);
         });
       });
 
       map.on('click', () => {
-        if (rutaSeleccionada) {
-          rutaSeleccionada = null;
-          actualizarEstilos();
+        if (rutaSeleccionada && !todasLasRutasSeleccionadas) {
+          deseleccionarTodasLasRutas();
         }
       });
 
@@ -853,6 +836,56 @@
         const grupo = L.featureGroup(polylines.map(p => p.polyline));
         map.fitBounds(grupo.getBounds().pad(0.1));
       }
+    }
+
+    // Función para seleccionar una ruta específica
+    function seleccionarRuta(rutaObj) {
+      todasLasRutasSeleccionadas = false;
+      rutaSeleccionada = rutaObj;
+      actualizarEstilos();
+      actualizarSeleccionEnPanel();
+    }
+
+    // Función para actualizar estilos de las rutas
+    function actualizarEstilos() {
+      polylines.forEach(obj => {
+        const esSeleccionada = (todasLasRutasSeleccionadas || obj === rutaSeleccionada);
+
+        obj.polyline.setStyle({
+          weight: esSeleccionada ? 8 : 4,
+          opacity: esSeleccionada ? 1.0 : 0.7
+        });
+
+        // Traer la ruta seleccionada al frente
+        if (esSeleccionada) {
+          obj.polyline.bringToFront();
+        }
+
+        // Actualizar decorador
+        map.removeLayer(obj.decorator);
+        obj.decorator = L.polylineDecorator(obj.polyline, {
+          patterns: [
+            {
+              offset: '5%',
+              repeat: 80,
+              symbol: L.Symbol.arrowHead({
+                pixelSize: 10,
+                polygon: true,
+                pathOptions: {
+                  color: obj.color,
+                  weight: 5,
+                  opacity: esSeleccionada ? 1.0 : 0.7
+                }
+              })
+            }
+          ]
+        }).addTo(map);
+
+        // Traer también las flechas de la ruta seleccionada al frente
+        if (esSeleccionada) {
+          obj.decorator.bringToFront();
+        }
+      });
     }
 
     // Función para mostrar detalles de las rutas
@@ -882,14 +915,24 @@
           <p><strong>Clientes Atendidos:</strong> ${data.statistics.num_clients}</p>
           <p><strong>Factibilidad:</strong> ${data.solution_quality.is_feasible ? '✅ Factible' : '❌ No factible'}</p>
         </div>
+        
+        <div class="route-controls">
+          <button class="btn btn-secondary" id="selectAllRoutesBtn">
+            <i class="fas fa-layer-group"></i> Seleccionar Todas las Rutas
+          </button>
+          <button class="btn" id="deselectAllRoutesBtn">
+            <i class="fas fa-times"></i> Deseleccionar Todas
+          </button>
+        </div>
       `;
       
       // Detalles de cada ruta individual
       data.routes.forEach((ruta, index) => {
-        const color = ['#FF0000', '#0000FF', '#00FF00', '#FFA500', '#800080', '#FF69B4', '#FFD700', '#00FFFF', '#FF00FF', '#32CD32'][index % 10];
+        const color = ['#B84949', '#6161BA', '#8DCC8D', '#D9BA4E', '#B061B0', 
+                      '#FF69B4', '#FFD700', '#00FFFF', '#FF00FF', '#32CD32'][index % 10];
         
         html += `
-          <div class="detalles-ruta">
+          <div class="detalles-ruta" id="ruta-${ruta.vehicle_id}" data-vehicle-id="${ruta.vehicle_id}">
             <h4>
               <div class="color-ruta" style="background-color: ${color}; display: inline-block;"></div>
               Vehículo ${ruta.vehicle_id}
@@ -923,6 +966,70 @@
       });
       
       document.getElementById("contenidoDetalles").innerHTML = html;
+      
+      // Agregar eventos de clic a las rutas en el panel
+      data.routes.forEach((ruta, index) => {
+        const elementoRuta = document.getElementById(`ruta-${ruta.vehicle_id}`);
+        if (elementoRuta) {
+          elementoRuta.addEventListener('click', function() {
+            seleccionarRutaPorVehiculo(ruta.vehicle_id);
+          });
+        }
+      });
+      
+      // Agregar eventos a los botones de control
+      document.getElementById('selectAllRoutesBtn').addEventListener('click', seleccionarTodasLasRutas);
+      document.getElementById('deselectAllRoutesBtn').addEventListener('click', deseleccionarTodasLasRutas);
+    }
+
+    // Función para seleccionar una ruta por ID de vehículo
+    function seleccionarRutaPorVehiculo(vehicleId) {
+      const rutaObj = polylines.find(obj => obj.vehicleId === vehicleId);
+      if (rutaObj) {
+        seleccionarRuta(rutaObj);
+      }
+    }
+
+    // Función para seleccionar todas las rutas
+    function seleccionarTodasLasRutas() {
+      todasLasRutasSeleccionadas = true;
+      rutaSeleccionada = null;
+      actualizarEstilos();
+      actualizarSeleccionEnPanel();
+    }
+
+    // Función para deseleccionar todas las rutas
+    function deseleccionarTodasLasRutas() {
+      todasLasRutasSeleccionadas = false;
+      rutaSeleccionada = null;
+      actualizarEstilos();
+      actualizarSeleccionEnPanel();
+    }
+
+    // Función para actualizar la selección en el panel
+    function actualizarSeleccionEnPanel() {
+      // Remover clase de selección de todos los elementos
+      document.querySelectorAll('.detalles-ruta').forEach(el => {
+        if (el.id && el.id.startsWith('ruta-')) {
+          el.classList.remove('seleccionada');
+        }
+      });
+      
+      // Aplicar la clase según el estado de selección
+      if (todasLasRutasSeleccionadas) {
+        // Seleccionar todas las rutas en el panel
+        document.querySelectorAll('.detalles-ruta').forEach(el => {
+          if (el.id && el.id.startsWith('ruta-')) {
+            el.classList.add('seleccionada');
+          }
+        });
+      } else if (rutaSeleccionada) {
+        // Seleccionar solo la ruta específica
+        const elementoRuta = document.getElementById(`ruta-${rutaSeleccionada.vehicleId}`);
+        if (elementoRuta) {
+          elementoRuta.classList.add('seleccionada');
+        }
+      }
     }
 
     // Inicializar la interfaz

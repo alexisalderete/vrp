@@ -390,12 +390,12 @@
 
     map.removeControl(map.zoomControl); // Desactivar el control de zoom
 
-    let orders = [];
-    let markers = [];
-    let polylines = [];
-    let depotMarker = null;
-    let isAddingOrder = false;
-    let orderCounter = 1;
+    let orders = []; // Array para almacenar los pedidos
+    let markers = []; // Array para almacenar los marcadores
+    let polylines = []; // Array para almacenar las polilíneas
+    let depotMarker = null; // Marcador del depósito
+    let isAddingOrder = false; // Variable para controlar el modo de agregar pedido
+    let orderCounter = 1; // Contador para los números de los pedidos
 
     // Función para crear icono de cliente con número
     function createClientIcon(number) {

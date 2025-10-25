@@ -388,6 +388,8 @@
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
+    map.removeControl(map.zoomControl); // Desactivar el control de zoom
+
     let orders = [];
     let markers = [];
     let polylines = [];
